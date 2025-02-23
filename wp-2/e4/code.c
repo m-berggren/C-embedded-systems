@@ -66,7 +66,7 @@ int main(int argc, char *argv[]) {
 
     // ---- Program logic -------------
     packed = pack_the_bits(&pack_values);
-    printf("%02x\n", packed);
+    printf("0x%02X\n", packed);
 
     return 0;
 }
@@ -127,3 +127,13 @@ char pack_the_bits(VEHICLE *veh) {
     // Returns the updated bit string
     return bit_str;
 }
+
+// 1 2 2 1 1
+// 0000 0010
+
+// 1000 0000
+// 0010 0000
+// 0000 1000
+// 0000 0010
+// 0000 0001
+// 1010 1011

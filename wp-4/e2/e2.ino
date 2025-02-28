@@ -1,26 +1,25 @@
 // (C) __Marcus Berggren, Carl Vågfelt Nihlmar, Ibrahim Alzoubi, group: 4 __ (2025) 
 // Work package 4
 // Exercise 2
-// Submission code: 
+// Submission code: 250204
 
 /**
- * This program uses Timer interrupts to periodically read temperature
- * and update LED lights accordingly.
+ * This program uses Timer interrupts to periodically (once per second) update
+ * the servo motor according the timer value that's left.
  *
- * Purpose: Learn about timer interrupts and update LED lights according to
- * value readings from a temperature sensor.
+ * Purpose: Learn about timer interrupts and update servo according to timer 
+ * value.
  * 
  * Source for setting up timer1 in Arduino Uno: 
  * https://www.instructables.com/Arduino-Timer-Interrupts/
  */
 
 // ---- Include section -------------------------------------------------------
-#include <Servo.h>          // Import the servo library 
+#include <Servo.h>           // Import the servo library 
 
 // ---- Define section --------------------------------------------------------
 
-#define SERVO_PIN A0        //
-// ---- Timer constants ---------------
+#define SERVO_PIN A0         // Analog pin to the servo motor
 #define CLOCK_SPEED 16000000 // Clock speed of Uno
 #define PRESCALER   1024     // Slow down speed of timer by dividing the freq:
                              // taking Uno clock speed (16MHz) / prescaler
@@ -28,21 +27,19 @@
 #define COUNTS_PER_SECOND 61 // Number of timer2 overflows in 1 second
 
 
-// ---- Typedef & constants ---------------------------------------------------
+// ---- Define variables ---------------------------------------------------
 
-int counter = 0;                // 
-int timer = 60;                //
+int counter = 0;                // Counter ISR uses to update new_data flag
+int timer = 60;                 // The main countdown timer 60-0 in the program
 
-Servo servo_A0;                 //
-volatile bool new_data = false; //
+Servo servo_A0;                 // Defining the servo motor used
+volatile bool new_data = false; // Variable used in ISR to flag if servo
+                                // should run.
 
 
 // ---- Function declarations -------------------------------------------------
-//
+// Function that rotates the servo motor based on the timer value
 void rotate_servo();
-
-// Writes out seconds remaining of timer
-void write_to_output();
 
 // ---- Setup section ---------------------------------------------------------
 
@@ -69,7 +66,7 @@ Actual conversion:
 Since it's zero-indexed there's a -1 above.
 
 Compare match register (CMR)
-CMR = 15,624 = (16,000,000 / (1024 * 1) / 61) - 1
+CMR = 255,147 = (16,000,000 / (1024 * 1) / 61) - 1
 */
 
 // Executed once for setup
@@ -78,9 +75,14 @@ void setup() {
     // Enable printing to the serial output
     Serial.begin(9600);
     
-
+    // Connect pin to the servo
     servo_A0.attach(SERVO_PIN);
+    // Move servo to degree 0
     servo_A0.write(0);
+
+    // Print out 60s to the serial output
+    Serial.print("Seconds: ");
+    Serial.println(timer);
 
     // ---- Setting up the timer interruption logic using timer2
 
@@ -95,8 +97,8 @@ void setup() {
     TCCR2B = 0; // Timer Counter Control Register 2B, controls operation mode
     TCNT2  = 0; // Timer that's incremented
 
-    // Setting the CMR from above
-    OCR2A = CMR; // The value that TCNT2 is compared against
+    // Setting the CMR, it's the value TCNT2 is compared against
+    OCR2A = CMR;
 
     /* Using Clear Timer on Compare Match (CTC) mode will clear the timer after
     TCNT2 matches OCR2A, so we use bitwise OR to set WGM21 to true */
@@ -105,9 +107,9 @@ void setup() {
     // Set the CS22, CC21 and CS20 in a prescale of 1024
     TCCR2B |= (1 << CS22) | (1 << CS21) | (1 << CS20);
 
-    /* Enabling OCIE2A on TIMSK2 means that an interrupt is created whenever 
-    timer value TCNT2 matches 0CR2A */
-    TIMSK2 |= (1 << OCIE2A); // Timer Interrupt Mask Resiter 1
+    /* Enabling OCIE2A on TIMSK2 (Timer Interrupt Mask) means that an interrupt
+    is created whenever timer value TCNT2 matches 0CR2A */
+    TIMSK2 |= (1 << OCIE2A);
 
     // Calling sei() to allow interrupts again
     sei();
@@ -117,7 +119,7 @@ void setup() {
 // ---- Interrupt ---------------------
 /**
  * Timer2 Interrupt Service Routine (ISR)
- * Triggered every 0.16s. When counter goes up to COUNTS_PER_SECOND the
+ * Triggered every 0.16ms. When counter goes up to COUNTS_PER_SECOND the
  * counter starts over and new_data will flag that method should be run in main
  * loop.
  */
@@ -159,11 +161,13 @@ void loop() {
 }
 
 // ------ Function definitions ------------------------------------------------
-
+/**
+ * Function that maps the current timer count to a degree and then rotates the 
+ * servo accordingly.
+ */
 void rotate_servo() {
-
     // Map the current second (0-59) to a degree value (0-180)
     int degrees = map(timer, 60, 0, 0, 180);
-    
+    // Rotated the servo to the passed degree
     servo_A0.write(degrees);
 }

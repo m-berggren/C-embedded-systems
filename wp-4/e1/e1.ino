@@ -1,7 +1,7 @@
 // (C) __Marcus Berggren, Carl Vågfelt Nihlmar, Ibrahim Alzoubi, group: 4 __ (2025) 
 // Work package 4
 // Exercise 1
-// Submission code: 
+// Submission code: 250204
 
 /**
  * This program uses Timer interrupts to periodically read temperature
@@ -30,8 +30,9 @@
                              // taking Uno clock speed (16MHz) / prescaler
 #define INTERVAL    1        // The time interval to update LEDs
 
+// ---- Define variables ---------------------------------------------------
 
-// ---- Typedef & constants ---------------------------------------------------
+volatile bool update_leds = false;
 
 // Structure to map temperature ranges to output pins
 typedef struct {
@@ -58,7 +59,7 @@ int read_temp_value();
 /* Information for the setup:
 The clock speed for an Arduino Uno is 16MHz (16,000,000 Hz). Timer0 and 
 timer2 are 8 bit timers, so they can store max counter value of 255. So timer1 
-has to be chosen, its 16 bit reaches a max number of 65,535.
+can be chosen, its 16 bit reaches a max number of 65,535.
 
 For the timer1 with 16 bits it would be 65,536 / 16,000,000 (~ 4ms). To
 interrupt every second we can use a prescaler: Hz = clock speed / prescaler
@@ -68,7 +69,7 @@ CLOCK_SPEED / (PRESCALER * INTERVAL) - 1
 
 Since it's zero-indexed there's a -1 above.
 
-Compare match register (CMR)
+Compare Match Register (CMR)
 CMR = 15,624 = 16,000,000 / (1024 * 1) - 1
 */
 
@@ -88,7 +89,7 @@ void setup() {
     // Stop all interrupts
     cli();
 
-    // Calculating compare match register (CMR) according to equation above
+    // Calculating Compare Match Register (CMR) according to equation above
     int CMR = (CLOCK_SPEED / (PRESCALER * INTERVAL)) - 1;
 
     // Sets timer1 to interrupt at 1Hz
@@ -96,8 +97,8 @@ void setup() {
     TCCR1B = 0; // Timer Counter Control Register 1B, controls operation mode
     TCNT1  = 0; // Timer that's incremented
 
-    // Setting the CMR from above
-    OCR1A = CMR; // The value that TCNT1 is compared against
+    // Setting the CMR, it's the value TCNT1 is compared against
+    OCR1A = CMR;
 
     /* Using Clear Timer on Compare Match (CTC) mode will clear the timer after
     TCNT1 matches OCR1A, so we use bitwise OR to set WGM12 to true */
@@ -106,11 +107,11 @@ void setup() {
     // Set the CS12 and CS10 in a prescale of 1024
     TCCR1B |= (1 << CS12) | (1 << CS10);
 
-    /* Enabling OCIE1A on TIMSK1 means that an interrupt is created whenever 
-    timer value TCNT1 matches 0CR1A */
-    TIMSK1 |= (1 << OCIE1A); // Timer Interrupt Mask Resiter 1
+    /* Enabling OCIE1A on TIMSK1 (Timer Interrupt Mask) means that an interrupt 
+    is created whenever timer value TCNT1 matches 0CR1A */
+    TIMSK1 |= (1 << OCIE1A);
 
-    // Callinf sei() to allow interrupts again
+    // Calling sei() to allow interrupts again
     sei();
 
 }
@@ -118,13 +119,23 @@ void setup() {
 // ---- Interrupt ---------------------
 /**
  * Timer1 Interrupt Service Routine (ISR)
- * Triggered every second to:
- * 1. Read current temperature from TMP36 sensor
- * 2. Convert analog reading to temperature in Celsius 
- * 3. Update LED indicators based on temperature thresholds
  */
 ISR(TIMER1_COMPA_vect) {
+  	// Update the value update_leds to true
+  	update_leds = true;
+}
 
+// ---- Loop section ----------------------------------------------------------
+/**
+* Triggered every second to:
+* 1. Read current temperature from TMP36 sensor
+* 2. Convert analog reading to temperature in Celsius 
+* 3. Update LED indicators based on temperature thresholds
+*/
+void loop() {
+
+  // Check if update_leds flag is set to true in the interrupt
+  if (update_leds) {
     /* Reads and converts analog value to volt, then temperature in celcius 
     from the TMP36 sensor */
     int temperature = read_temp_value();
@@ -139,10 +150,11 @@ ISR(TIMER1_COMPA_vect) {
             // If not, it is lower than min_temp and we set pin to LOW
             digitalWrite(thresholds[i].pin, LOW);
     }
+    
+    // Set update leds to false
+    update_leds = false;
+  }
 }
-
-// ---- Loop section ----------------------------------------------------------
-void loop() {}
 
 // ------ Function definitions ------------------------------------------------
 
@@ -154,9 +166,9 @@ void loop() {}
  */
 int read_temp_value() {
     /* Reading the analog value 0-1023. Then convert to voltage by multiplying
-    5.0/1023 to get the voltage per value since max is 1023 */
-    float voltage = analogRead(TEMP_PIN) * 5.0 / 1023;
-    // Then convert voltage to celcius, with -0.5 to offset any diff in voltage
+    5.0195 / 1024.0 to get the voltage per value since max is 1024.
+    Formula used from lecture 4 with Tinkercad. */
+    float voltage = analogRead(TEMP_PIN) * 5.0195 / 1024.0;
+    // Then convert voltage to celcius, ((voltage - 500mV) times 100)
     return (voltage - 0.5) * 100;
 }
-
